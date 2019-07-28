@@ -1,8 +1,8 @@
 # Optimize & Secure a Linux Server
 
-> * Based on Ubuntu 18.04
+> * Based on `Ubuntu 18.04`
 >
-> * Replace <xxx> with your own data
+> * Replace `<xxx>` with your own data
 >
 > * References:
 >
@@ -30,9 +30,9 @@ adduser <new-user> sudo
 
 On your local machine, create an authentication key:
 
-> * If you've already created an RSA key-pair, skip this command
-> * For Windows 7 users, I recommend using Git command line tool
-> * For Windows 10 users, I recommend using Windows PowerShell
+> * If you've already created a key-pair, skip this command
+> * For `Windows 7` users, I recommend using `Git` command line tool
+> * For `Windows 10` users, I recommend using `Windows PowerShell`
 > * You should not leave the passphrase blank
 
 ```
@@ -45,7 +45,7 @@ Upload the public key to your server:
 ssh-copy-id <new-user>@<server ip>
 ```
 
-Now you should be able to access your server without using the password of your <new-user>.
+Now you should be able to access your server without using the password of your `<new-user>`.
 
 ## Step III. Disable Root Login and Password Authentication
 
@@ -151,7 +151,8 @@ net.ipv4.tcp_congestion_control = bbr
 Modify `/etc/profile`, add the following content to the end of the file:
 
 ```
-ulimit -n 51200
+#原文中设置成了51200，我在树莓派上也用这个值然后炸了，可以自己填喜欢的数字，最低不要低于8192
+ulimit -n 8192
 ```
 
 Save changes and reboot:
