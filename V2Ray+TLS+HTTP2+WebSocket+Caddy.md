@@ -212,28 +212,143 @@ wget https://install.direct/go.sh
 sudo bash go.sh
 ```
 
+**注：首次安装完毕后会打印一串随机生成的UUID，建议保存下来，之后配置文件里可以用到**
+
 编辑配置文件：
 
 ```
 sudo nano /etc/v2ray/config.json
 ```
 
-删光里面的内容替换成下面这些（按照要求替换尖括号内容，建议先在本地编辑好，到[这里](https://www.json.cn/)检验`JSON`文件正确性，然后再复制回去）：
+删光里面的内容替换成下面这些（替换尖括号内容，建议先在本地编辑好，到[这里](https://www.json.cn/)检验`JSON`文件正确性，然后再复制回去）：
 
 ```
-
+{
+    "inbound":{
+        "port":<http2_port>,
+        "listen":"127.0.0.1",
+        "protocol":"vmess",
+        "settings":{
+            "clients":[
+                {
+                    "id":"<uuid>",
+                    "level":1,
+                    "alterId":64
+                }
+            ]
+        },
+        "streamSettings":{
+            "network":"h2",
+            "security":"tls",
+            "httpSettings":{
+                "path":"/<http2_path>",
+                "host":[
+                    "<example.com>"
+                ]
+            },
+            "tlsSettings":{
+                "serverName":"<example.com>",
+                "certificates":[
+                    {
+                        "certificateFile":"/etc/v2ray/v2ray.crt",
+                        "keyFile":"/etc/v2ray/v2ray.key"
+                    }
+                ]
+            }
+        }
+    },
+    "inboundDetour":[
+        {
+            "port":<websocket_port>,
+            "listen":"127.0.0.1",
+            "protocol":"vmess",
+            "settings":{
+                "clients":[
+                    {
+                        "id":"<uuid>",
+                        "level":1,
+                        "alterId":64
+                    }
+                ]
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"/<websocket_path>"
+                }
+            }
+        }
+    ],
+    "outbounds":[
+        {
+            "protocol":"freedom",
+            "settings":{}
+        },
+        {
+            "protocol":"blackhole",
+            "settings":{},
+            "tag":"blocked"
+        }
+    ],
+    "routing":{
+        "rules":[
+            {
+                "type":"field",
+                "ip":[
+                    "geoip:private"
+                ],
+                "outboundTag":"blocked"
+            }
+        ]
+    }
+}
 ```
+
+其中`<http2_port>`、`<http2_path>`、`<websocket_port>`、`<websocket_path>`要和后文`Caddyfile`中的一致，假如想要其它的`<uuid>`，可以访问[这个](https://www.uuidgenerator.net/)网站。
 
 注意到`tlsSettings`配置项中有两个目前不存在的文件路径，这里原本需要填写`Caddy`生成的证书文件的路径，但是这个路径太长了，而且假如后期更换域名还要再修改配置文件，因此需要新建两个软链：
 
 ```
-
+sudo ln -s /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.crt /etc/v2ray/v2ray.crt
+sudo ln -s /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.key /etc/v2ray/v2ray.key
 ```
 
-**注意：软链生成完毕后可在`/etc/v2ray`目录下执行`ls`命令验证，如果创建成功应有蓝色字样的`.crt`文件和`.key`文件，若为红色则表示软链指向一个不存在的文件，此时运行`v2ray`会报错，造成此问题的原因可能是之前配置`Caddy`的过程中出错导致证书文件被保存到了别的位置，可使用`linux`的搜索文件命令查找证书文件被放在了哪里：**
+**注意：假如创建软链错误，此时运行`v2ray`会报错，造成此问题的原因可能是之前配置`Caddy`的过程中出错导致证书文件被保存到了别的位置，可使用`linux`的搜索文件命令查找证书文件被放在了哪里。**
+
+最后再次编辑`Caddyfile`：
 
 ```
+http://<example.com> {
+    redir https://<example.com>{url}
+}
 
+https://<example.com> {
+    root /var/www/
+
+    tls <user@example.com> {
+        ciphers ECDHE-ECDSA-WITH-CHACHA20-POLY1305 ECDHE-ECDSA-AES256-GCM-SHA384 ECDHE-ECDSA-AES256-CBC-SHA
+        curves p384
+        key_type p384
+    }
+
+    proxy /<http2_path> https://127.0.0.1:<http2_port> {
+        insecure_skip_verify
+        header_upstream X-Forwarded-Proto "https"
+        header_upstream Host "<example.com>"
+    }
+
+        proxy /<websocket_path> http://127.0.0.1:<websocket_port> {
+        websocket
+        header_upstream -Origin
+    }
+
+    header / {
+        Strict-Transport-Security "max-age=31536000;"
+        X-XSS-Protection "1; mode=block"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+}
 ```
 
-**施工中，还没写完**
+启动`V2Ray`并重启`caddy`，通过实际连接测试配置的情况，一切顺利的话就可以把两个服务设置成开机自启的了。
