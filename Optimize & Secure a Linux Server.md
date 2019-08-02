@@ -151,7 +151,7 @@ net.ipv4.tcp_congestion_control = bbr
 Modify `/etc/profile`, add the following content to the end of the file:
 
 ```
-#原文中设置成了51200，我在树莓派上也用这个值然后炸了，可以自己填喜欢的数字，最低不要低于8192
+#Any number larger than 8192 should be OK
 ulimit -n 8192
 ```
 
