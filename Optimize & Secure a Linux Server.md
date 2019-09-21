@@ -82,7 +82,7 @@ Set `allow` rules according to the service running on your server:
 ```
 sudo ufw allow ssh
 sudo ufw allow http
-sudo ufe allow https
+sudo ufw allow https
 ```
 
 You should at least allow `ssh`, otherwise you'll be blocked by your server.
