@@ -94,7 +94,7 @@ sudo touch /etc/caddy/Caddyfile
 **【更新】Caddy因版本升级，官方Repo中的文件已不再适用于1.X版本，此处提供我的备份**
 
 ```
-sudo curl -s  [to replace]  -o /etc/systemd/system/caddy.service
+sudo curl -s https://raw.githubusercontent.com/YUENIIMAA/Tutorials/master/Attachments/caddy.service -o /etc/systemd/system/caddy.service
 ```
 
 调整权限使其只可被`root`修改：
