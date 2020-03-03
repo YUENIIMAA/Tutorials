@@ -1,4 +1,4 @@
-# V2Ray+TLS+HTTP/2+WebSocket+Caddy
+# V2Ray+TLS+Caddy
 
 > * I wrote this in Chinese because I think this tutorial is super useful to Chinese people.
 >
@@ -15,7 +15,8 @@
 本教程实现了：
 
 > * 利用`Caddy`反向代理隐藏`V2Ray`服务
-> * `HTTP/2`和`WebSocket`两种协议的支持（支持后者是因为iOS平台的`Shadowrocket`不支持前者）
+> * ~~`HTTP/2`和`WebSocket`两种协议的支持（支持后者是因为iOS平台的`Shadowrocket`不支持前者）~~
+> * 移除`HTTP/2`，因未知原因在我的使用环境中性能变得非常糟糕
 
 在开始前，你需要：
 
@@ -90,8 +91,10 @@ sudo touch /etc/caddy/Caddyfile
 
 配置`systemd`服务：
 
+**【更新】Caddy因版本升级，官方Repo中的文件已不再适用于1.X版本，此处提供我的备份**
+
 ```
-sudo curl -s  https://raw.githubusercontent.com/mholt/caddy/master/dist/init/linux-systemd/caddy.service  -o /etc/systemd/system/caddy.service
+sudo curl -s  [to replace]  -o /etc/systemd/system/caddy.service
 ```
 
 调整权限使其只可被`root`修改：
@@ -137,10 +140,15 @@ sudo nano /var/www/index.html
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Hello from Caddy!</title>
+    <title>社会主义核心价值观</title>
   </head>
   <body>
-    <h1 style="font-family: sans-serif">This page is being served via Caddy</h1>
+	<div align='center'>
+		<h1>社会主义核心价值观</h1>
+		<h2>富强  民主  文明  和谐</h2>
+		<h2>自由  平等  公正  法治</h2>
+		<h2>爱国  敬业  诚信  友善</h2>
+	</div>
   </body>
 </html>
 ```
@@ -153,7 +161,7 @@ sudo nano /var/www/index.html
 sudo nano /etc/caddy/Caddyfile
 ```
 
-粘贴如下内容保存（`<example.com>`替换成指向服务器地址的域名，`<user@example.com>`替换成邮箱，以防万一还是要多嘴一句尖括号也是要被替换掉内容的一部分）：
+粘贴如下内容保存（`<example.com>`替换成指向服务器地址的域名，`<user@example.com>`替换成邮箱，后文的`<ip-address>`替换成服务器IP地址，以防万一还是要多嘴一句尖括号也是要被替换掉内容的一部分）：
 
 ```
 http://<example.com> {
@@ -208,7 +216,7 @@ sudo systemctl start caddy
 
 ```
 wget https://install.direct/go.sh
-#如需更新，再次执行go.sh即可
+# 如需更新，再次执行go.sh即可
 sudo bash go.sh
 ```
 
@@ -224,96 +232,53 @@ sudo nano /etc/v2ray/config.json
 
 ```
 {
-    "inbound":{
-        "port":<http2_port>,
-        "listen":"127.0.0.1",
-        "protocol":"vmess",
-        "settings":{
-            "clients":[
-                {
-                    "id":"<uuid>",
-                    "level":1,
-                    "alterId":64
-                }
-            ]
-        },
-        "streamSettings":{
-            "network":"h2",
-            "security":"tls",
-            "httpSettings":{
-                "path":"/<http2_path>",
-                "host":[
-                    "<example.com>"
-                ]
-            },
-            "tlsSettings":{
-                "serverName":"<example.com>",
-                "certificates":[
-                    {
-                        "certificateFile":"/etc/v2ray/v2ray.crt",
-                        "keyFile":"/etc/v2ray/v2ray.key"
-                    }
-                ]
-            }
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "loglevel": "warning",
+    "error": "/var/log/v2ray/error.log"
+  },
+  "inbounds": [{
+    "listen": "127.0.0.1",
+    "port": <websocket_port>,
+    "protocol": "vmess",
+    "settings": {
+      "udp": true,
+      "clients": [
+        {
+          "id": "<uuid>",
+          "level": 1,
+          "alterId": 64
         }
+      ]
     },
-    "inboundDetour":[
-        {
-            "port":<websocket_port>,
-            "listen":"127.0.0.1",
-            "protocol":"vmess",
-            "settings":{
-                "clients":[
-                    {
-                        "id":"<uuid>",
-                        "level":1,
-                        "alterId":64
-                    }
-                ]
-            },
-            "streamSettings":{
-                "network":"ws",
-                "wsSettings":{
-                    "path":"/<websocket_path>"
-                }
-            }
-        }
-    ],
-    "outbounds":[
-        {
-            "protocol":"freedom",
-            "settings":{}
-        },
-        {
-            "protocol":"blackhole",
-            "settings":{},
-            "tag":"blocked"
-        }
-    ],
-    "routing":{
-        "rules":[
-            {
-                "type":"field",
-                "ip":[
-                    "geoip:private"
-                ],
-                "outboundTag":"blocked"
-            }
-        ]
+    "streamSettings": {
+      "network": "ws",
+      "wsSettings": {
+        "path": "/<websocket_path>"
+      }
     }
+  }],
+  "outbounds": [{
+    "protocol": "freedom",
+    "settings": {}
+  },{
+    "protocol": "blackhole",
+    "settings": {},
+    "tag": "blocked"
+  }],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "ip": ["geoip:private"],
+        "outboundTag": "blocked"
+      }
+    ]
+  }
 }
 ```
 
-其中`<http2_port>`、`<http2_path>`、`<websocket_port>`、`<websocket_path>`要和后文`Caddyfile`中的一致，假如想要其它的`<uuid>`，可以访问[这个](https://www.uuidgenerator.net/)网站。
-
-注意到`tlsSettings`配置项中有两个目前不存在的文件路径，这里原本需要填写`Caddy`生成的证书文件的路径，但是这个路径太长了，而且假如后期更换域名还要再修改配置文件，因此需要新建两个软链：
-
-```
-sudo ln -s /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.crt /etc/v2ray/v2ray.crt
-sudo ln -s /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.key /etc/v2ray/v2ray.key
-```
-
-**注意：假如创建软链错误，此时运行`v2ray`会报错，造成此问题的原因可能是之前配置`Caddy`的过程中出错导致证书文件被保存到了别的位置，可使用`linux`的搜索文件命令查找证书文件被放在了哪里。**
+其中`<websocket_port>`、`<websocket_path>`要和后文`Caddyfile`中的一致，假如想要其它的`<uuid>`，可以访问[这个](https://www.uuidgenerator.net/)网站。
 
 最后再次编辑`Caddyfile`：
 
@@ -331,13 +296,7 @@ https://<example.com> {
         key_type p384
     }
 
-    proxy /<http2_path> https://127.0.0.1:<http2_port> {
-        insecure_skip_verify
-        header_upstream X-Forwarded-Proto "https"
-        header_upstream Host "<example.com>"
-    }
-
-        proxy /<websocket_path> http://127.0.0.1:<websocket_port> {
+    proxy /<websocket_path> http://127.0.0.1:<websocket_port> {
         websocket
         header_upstream -Origin
     }
@@ -348,6 +307,10 @@ https://<example.com> {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
     }
+}
+
+http://<ip-address> {
+    redir https://<example.com>{url}
 }
 ```
 

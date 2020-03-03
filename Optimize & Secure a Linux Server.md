@@ -36,7 +36,7 @@ On your local machine, create an authentication key:
 > * You should not leave the passphrase blank
 
 ```
-ssh-keygen -b 4096
+ssh-keygen -t ed25519
 ```
 
 Upload the public key to your server:
