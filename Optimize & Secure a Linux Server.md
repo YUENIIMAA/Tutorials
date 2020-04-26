@@ -8,11 +8,10 @@
 >
 >   [How to Secure Your Server](https://www.linode.com/docs/security/securing-your-server/)
 >
->   [从零开始在Ubuntu上搭建 V2Ray h2 + tls + web 代理服务](https://canmipai.com/index.php/2018/06/28/v2ray_h2_web_tutorial/)
 
 ## Step I. Add a Limited User Account
 
-> * Skip this step if you've already had a limited user account
+Skip this step if you've already had a limited user account
 
 otherwise I suppose your server only has a root account, add a limited user account first:
 
@@ -96,8 +95,8 @@ sudo ufw enable
 ## Step V. Upgrade Your System
 
 ```
-sudo apt-get update
-sudo apt-get dist-upgrade
+sudo apt update
+sudo apt dist-upgrade
 sudo apt autoremove
 ```
 
@@ -151,7 +150,6 @@ net.ipv4.tcp_congestion_control = bbr
 Modify `/etc/profile`, add the following content to the end of the file:
 
 ```
-#Any number larger than 8192 should be OK
 ulimit -n 8192
 ```
 
