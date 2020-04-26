@@ -1,4 +1,4 @@
-# V2Ray+TLS+HAProxy+Caddy+DS【施工中】
+# V2Ray+TLS+HAProxy+Caddy+DS
 
 > * 参考：
 >
@@ -28,7 +28,7 @@
 使用官方脚本一键安装`Caddy`：
 
 ```
-#如需更新，再次执行该命令即可（其他的命令需不要执行第二次）
+#此脚本安装的是Caddy的1.X版本，2.0已推出但目前没有一键脚本
 sudo curl https://getcaddy.com | bash -s personal
 ```
 
@@ -119,7 +119,7 @@ sudo systemctl status caddy
 	Docs: https://caddyserver.com/docs
 ```
 
-## Step II. 配置Caddy和HTTPS
+## Step II. 配置Caddy
 
 先创建一个站点文件：
 
@@ -193,8 +193,7 @@ cd /etc/caddy
 以命令行方式启动`Caddy`：
 
 ```
-#假如你很心急已经启动过Caddy，需先结束Caddy进程
-#sudo systemctl stop caddy
+sudo systemctl stop caddy
 caddy
 ```
 
@@ -202,17 +201,19 @@ caddy
 
 如需验证`HTTPS`，全部配置完毕可到[SSL Labs](https://www.ssllabs.com/)检测一下评分，正常情况下可以获得`A`的评价，如需提升到`A+`请看另一篇教程。
 
-## Step III. 安装与配置V2Ray
+## Step III. 安装V2Ray
 
 获取并执行一键安装脚本：
 
 ```
 wget https://install.direct/go.sh
-# 如需更新，再次执行go.sh即可
+#如需更新，再次执行go.sh即可
 sudo bash go.sh
 ```
 
 **注：首次安装完毕后会打印的UUID是随机生成的可以直接使用**
+
+## Step IV. 配置V2Ray
 
 配置`v2ray`用户和`Domain Socket`文件：
 
@@ -322,3 +323,112 @@ sudo nano /etc/v2ray/config.json
 ```
 
 `<uuid>`如果不想用默认生成的，可以访问[这个](https://www.uuidgenerator.net/)网站。
+
+## Step V. 安装HAProxy
+
+`Ubuntu 18.04`官方仓库自带的`HAProxy`版本太低了所以要先手动添加仓库：
+
+```
+sudo add-apt-repository ppa:vbernat/haproxy-1.8
+sudo apt update
+sudo apt install haproxy
+```
+
+## Step VI. 配置HAProxy
+
+`Caddy`搞到的是`crt`和`key`文件但是`HAProxy`要的是`pem`文件所以要先合成证书：
+
+```
+sudo cat /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.crt /etc/ssl/caddy/acme/acme-v02.api.letsencrypt.org/sites/<example.com>/<example.com>.key | sudo tee /etc/ssl/private/<example.com>.pem
+```
+
+然后编辑配置文件：
+
+```
+sudo nano /etc/haproxy/haproxy.cfg
+```
+
+修改内容如下：
+
+```
+global
+        log /dev/log    local0
+        log /dev/log    local1 notice
+        chroot /var/lib/haproxy
+        stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+        stats timeout 30s
+        user haproxy
+        group haproxy
+        daemon
+
+        # Default SSL material locations
+        ca-base /etc/ssl/certs
+        crt-base /etc/ssl/private
+
+        # Default ciphers to use on SSL-enabled listening sockets.
+        # For more information, see ciphers(1SSL). This list is from:
+        #  https://hynek.me/articles/hardening-your-web-servers-ssl-ciphers/
+        # An alternative list with additional directives can be obtained from
+        #  https://mozilla.github.io/server-side-tls/ssl-config-generator/?server=haproxy
+        # ssl-default-bind-ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:RSA+AESGCM:RSA+AES:!aNULL:!MD5:!DSS
+        # ssl-default-bind-options no-sslv3
+        ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+        ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-bind-options no-sslv3 no-tlsv10 no-tlsv11
+        tune.ssl.default-dh-param 2048
+
+defaults
+        log     global
+        mode    tcp
+        option  dontlognull
+        timeout connect 5s
+        timeout client  300s
+        timeout server  300s
+        errorfile 400 /etc/haproxy/errors/400.http
+        errorfile 403 /etc/haproxy/errors/403.http
+        errorfile 408 /etc/haproxy/errors/408.http
+        errorfile 500 /etc/haproxy/errors/500.http
+        errorfile 502 /etc/haproxy/errors/502.http
+        errorfile 503 /etc/haproxy/errors/503.http
+        errorfile 504 /etc/haproxy/errors/504.http
+
+frontend gateway
+        bind 0.0.0.0:443 tfo ssl crt /etc/ssl/private/<example.com>.pem
+        tcp-request inspect-delay 5s
+        tcp-request content accept if HTTP
+        use_backend web if HTTP
+        default_backend proxy
+
+backend web
+        mode http
+        server caddy 127.0.0.1:8080
+
+backend proxy
+        server v2ray /v2ray/vmess.sock
+```
+
+## Step VII. 收尾
+
+因为修改了`service`文件所以要重载一下：
+
+```
+sudo systemctl daemon-reload
+```
+
+然后从后往前启动：
+
+```
+sudo systemctl start v2ray
+sudo systemctl start caddy
+sudo systemctl start haproxy
+```
+
+如果有报错，根据报错处理完之后设置开机启动：
+
+```
+sudo systemctl enable v2ray
+sudo systemctl enable caddy
+sudo systemctl enable haproxy
+```
+
+然后就可以愉快地科学上网了。
