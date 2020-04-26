@@ -15,6 +15,7 @@
 > * 利用`HAProxy`反向代理隐藏`V2Ray`服务
 > * 利用`Caddy`获取证书并提供`Web`服务
 > * 使用`TCP`模式，对比`WS`和`HTTP2`有蜜汁性能加成
+> * 使用`Domain Socket`在`HAProxy`和`VRay`间通讯
 
 在开始前，你需要：
 
@@ -159,7 +160,7 @@ sudo nano /var/www/index.html
 sudo nano /etc/caddy/Caddyfile
 ```
 
-粘贴如下内容保存（`<example.com>`替换成指向服务器地址的域名，`<user@example.com>`替换成邮箱，后文的`<ip-address>`替换成服务器IP地址，以防万一还是要多嘴一句尖括号也是要被替换掉内容的一部分）：
+粘贴如下内容保存（`<example.com>`替换成服务器的域名，`<user@example.com>`替换成你的邮箱，`<ip-address>`替换成服务器IP地址，以防万一还是要多嘴一句尖括号也是要被替换掉内容的一部分）：
 
 ```
 :8080 {
@@ -197,12 +198,7 @@ cd /etc/caddy
 caddy
 ```
 
-第一次启动采用命令行启动的方式时因为需要接受`Let’s Encrypt`的协议，一路同意过去就行了，当看到`done`表示证书获取成功，此时进程并不会退出，可以`Ctrl + C`终止然后通过`Systemd`重启`Caddy`：
-
-```
-sudo systemctl start caddy
-#如需开机自启，将start换成enable执行一次即可，如需重启，将start换成restart
-```
+第一次启动采用命令行启动的方式时因为需要接受`Let’s Encrypt`的协议，一路同意过去就行了，当看到`done`表示证书获取成功，此时进程并不会退出，可以`Ctrl + C`终止。
 
 如需验证`HTTPS`，全部配置完毕可到[SSL Labs](https://www.ssllabs.com/)检测一下评分，正常情况下可以获得`A`的评价，如需提升到`A+`请看另一篇教程。
 
@@ -216,7 +212,59 @@ wget https://install.direct/go.sh
 sudo bash go.sh
 ```
 
-**注：首次安装完毕后会打印一串随机生成的UUID，建议保存下来，之后配置文件里可以用到**
+**注：首次安装完毕后会打印的UUID是随机生成的可以直接使用**
+
+配置`v2ray`用户和`Domain Socket`文件：
+
+```
+sudo mkdir /var/lib/haproxy/v2ray
+sudo useradd v2ray -s /usr/sbin/nologin
+sudo chown -R v2ray:v2ray /var/log/v2ray
+sudo chown -R v2ray:v2ray /var/lib/haproxy/v2ray
+```
+
+编辑`service`文件：
+
+```
+sudo nano /etc/systemd/system/v2ray.service
+```
+
+如果系统不是`Ubuntu 18.04`，`rm`等工具的路径可能和下面配置里写的不一样：
+
+```
+[Unit]
+Description=V2Ray - A unified platform for anti-censorship
+Documentation=https://v2ray.com https://guide.v2fly.org
+After=network.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+# If the version of systemd is 240 or above, then uncommenting Type=exec and commenting out Type=simple
+#Type=exec
+Type=simple
+# Runs as root or add CAP_NET_BIND_SERVICE ability can bind 1 to 1024 port.
+# This service runs as root. You may consider to run it as another user for security concerns.
+# By uncommenting User=v2ray and commenting out User=root, the service will run as user v2ray.
+# More discussion at https://github.com/v2ray/v2ray-core/issues/1011
+#User=root
+User=v2ray
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+NoNewPrivileges=yes
+
+ExecStartPre=/bin/rm -rf /var/lib/haproxy/v2ray/*.sock
+
+ExecStart=/usr/bin/v2ray/v2ray -config /etc/v2ray/config.json
+
+ExecStartPost=/bin/sleep 1
+ExecStartPost=/bin/chmod 777 /var/lib/haproxy/v2ray/vmess.sock
+
+Restart=on-failure
+# Don't restart in the case of configuration error
+RestartPreventExitStatus=23
+
+[Install]
+WantedBy=multi-user.target
+```
 
 编辑配置文件：
 
@@ -224,7 +272,7 @@ sudo bash go.sh
 sudo nano /etc/v2ray/config.json
 ```
 
-删光里面的内容替换成下面这些（替换尖括号内容，建议先在本地编辑好，到[这里](https://www.json.cn/)检验`JSON`文件正确性，然后再复制回去）：
+增加`Domain Socket`的部分（建议先在本地编辑好，到[这里](https://www.json.cn/)检验`JSON`文件正确性，然后再复制回去）：
 
 ```
 {
@@ -235,10 +283,9 @@ sudo nano /etc/v2ray/config.json
   },
   "inbounds": [{
     "listen": "127.0.0.1",
-    "port": <websocket_port>,
+    "port": 1080,
     "protocol": "vmess",
     "settings": {
-      "udp": true,
       "clients": [
         {
           "id": "<uuid>",
@@ -248,9 +295,9 @@ sudo nano /etc/v2ray/config.json
       ]
     },
     "streamSettings": {
-      "network": "ws",
-      "wsSettings": {
-        "path": "/<websocket_path>"
+      "network": "ds",
+      "dsSettings": {
+        "path": "/var/lib/haproxy/v2ray/vmess.sock"
       }
     }
   }],
@@ -274,40 +321,4 @@ sudo nano /etc/v2ray/config.json
 }
 ```
 
-其中`<websocket_port>`、`<websocket_path>`要和后文`Caddyfile`中的一致，假如想要其它的`<uuid>`，可以访问[这个](https://www.uuidgenerator.net/)网站。
-
-最后再次编辑`Caddyfile`：
-
-```
-http://<example.com> {
-    redir https://<example.com>{url}
-}
-
-https://<example.com> {
-    root /var/www/
-
-    tls <user@example.com> {
-        ciphers ECDHE-ECDSA-WITH-CHACHA20-POLY1305 ECDHE-ECDSA-AES256-GCM-SHA384 ECDHE-ECDSA-AES256-CBC-SHA
-        curves p384
-        key_type p384
-    }
-
-    proxy /<websocket_path> http://127.0.0.1:<websocket_port> {
-        websocket
-        header_upstream -Origin
-    }
-
-    header / {
-        Strict-Transport-Security "max-age=31536000;"
-        X-XSS-Protection "1; mode=block"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-    }
-}
-
-http://<ip-address> {
-    redir https://<example.com>{url}
-}
-```
-
-启动`V2Ray`并重启`caddy`，通过实际连接测试配置的情况，一切顺利的话就可以把两个服务设置成开机自启的了。
+`<uuid>`如果不想用默认生成的，可以访问[这个](https://www.uuidgenerator.net/)网站。
