@@ -179,7 +179,7 @@ http://<example.com> {
     redir https://<example.com>{url}
 }
 
-http://<ip-address> {
+:80 {
     redir https://<example.com>{url}
 }
 ```
