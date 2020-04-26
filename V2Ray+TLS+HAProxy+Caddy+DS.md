@@ -1,22 +1,20 @@
-# V2Ray+TLS+Caddy
+# V2Ray+TLS+HAProxy+Caddy+DS【施工中】
 
-> * I wrote this in Chinese because I think this tutorial is super useful to Chinese people.
->
 > * 参考：
 >
->   [从零开始在Ubuntu上搭建 V2Ray h2 + tls + web 代理服务](https://canmipai.com/index.php/2018/06/28/v2ray_h2_web_tutorial/)
+>   [新 V2Ray 白话文指南](https://guide.v2fly.org/advanced/tcp_tls_web.html)
 >
->   [WebSocket+TLS+Web](https://toutyrater.github.io/advanced/wss_and_web.html)
+>   [HaProxy 通过 Domain Socket 与 V2Ray 通讯](https://gist.github.com/liberal-boy/b2d5597285b4202b6d607faaa1078d27)
 >
->   [caddy官方脚本一键安装与使用]([https://medium.com/@jestem/caddy%E5%AE%98%E6%96%B9%E8%84%9A%E6%9C%AC%E4%B8%80%E9%94%AE%E5%AE%89%E8%A3%85%E4%B8%8E%E4%BD%BF%E7%94%A8-1e6d25154804](https://medium.com/@jestem/caddy官方脚本一键安装与使用-1e6d25154804))
+>   [关于一键安装脚本安全优化的一点小小建议](https://github.com/v2ray/v2ray-core/issues/1011)
 
 ## 前言
 
 本教程实现了：
 
-> * 利用`Caddy`反向代理隐藏`V2Ray`服务
-> * ~~`HTTP/2`和`WebSocket`两种协议的支持（支持后者是因为iOS平台的`Shadowrocket`不支持前者）~~
-> * 移除`HTTP/2`，因未知原因在我的使用环境中性能变得非常糟糕
+> * 利用`HAProxy`反向代理隐藏`V2Ray`服务
+> * 利用`Caddy`获取证书并提供`Web`服务
+> * 使用`TCP`模式，对比`WS`和`HTTP2`有蜜汁性能加成
 
 在开始前，你需要：
 
@@ -164,26 +162,24 @@ sudo nano /etc/caddy/Caddyfile
 粘贴如下内容保存（`<example.com>`替换成指向服务器地址的域名，`<user@example.com>`替换成邮箱，后文的`<ip-address>`替换成服务器IP地址，以防万一还是要多嘴一句尖括号也是要被替换掉内容的一部分）：
 
 ```
-http://<example.com> {
-    redir https://<example.com>{url}
+:8080 {
+    root /var/www/
 }
  
-https://<example.com> {
-    root /var/www/
-    gzip
- 
+https://<example.com>:8443 {
     tls <user@example.com> {
         ciphers ECDHE-ECDSA-WITH-CHACHA20-POLY1305 ECDHE-ECDSA-AES256-GCM-SHA384 ECDHE-ECDSA-AES256-CBC-SHA
         curves p384
         key_type p384
     }
- 
-    header / {
-        Strict-Transport-Security "max-age=31536000;"
-        X-XSS-Protection "1; mode=block"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-    }
+}
+
+http://<example.com> {
+    redir https://<example.com>{url}
+}
+
+http://<ip-address> {
+    redir https://<example.com>{url}
 }
 ```
 
@@ -208,7 +204,7 @@ sudo systemctl start caddy
 #如需开机自启，将start换成enable执行一次即可，如需重启，将start换成restart
 ```
 
-如需验证`HTTPS`配置可到[SSL Labs](https://www.ssllabs.com/)检测一下评分，正常情况下可以获得满分`A+`的评价。
+如需验证`HTTPS`，全部配置完毕可到[SSL Labs](https://www.ssllabs.com/)检测一下评分，正常情况下可以获得`A`的评价，如需提升到`A+`请看另一篇教程。
 
 ## Step III. 安装与配置V2Ray
 
