@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>中国崛起</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      html {
+        height: 100%;
+      }
+
+      body {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #header {
+        height: 128px;
+        background: #ff9999;
+        flex: 0 0 auto;
+      }
+
+      #header img {
+        height: 128px;
+        width: auto;
+      }
+
+      #box {
+        background: #ffffff;
+        color: #ff6666;
+        flex: 1 0 auto;
+      }
+
+      #box img {
+        height: 256px;
+        width: auto;
+      }
+
+      #host {
+        background: #ffffff;
+        flex: 0 0 auto;
+      }
+
+      #host img {
+        height: 62px;
+        width: auto;
+      }
+
+      #footer {
+        height: 25px;
+        background: #ffcc99;
+        color: #ff6666;
+        font-weight: bold;
+        flex: 0 0 auto;
+      }
+    </style>
+  </head>
+
+  <header id="header" align="center">
+    <img src="./header.png" />
+  </header>
+
+  <body>
+    <div id="box" align="center">
+      <br />
+      <h1>社会主义核心价值观</h1>
+      <br />
+      <h2>富强 民主 文明 和谐</h2>
+      <br />
+      <h2>自由 平等 公正 法治</h2>
+      <br />
+      <h2>爱国 敬业 诚信 友善</h2>
+      <br />
+      <img src="./city.png" />
+    </div>
+    <div id="host" align="center">
+      <img src="./host.png" />
+    </div>
+  </body>
+  <footer id="footer">
+    <div id="clock" align="center"></div>
+    <script>
+      function refreshClock() {
+        var date = new Date();
+        var ww;
+        switch (date.getDay()) {
+          case 1:
+            ww = "星期一";
+            break;
+          case 2:
+            ww = "星期二";
+            break;
+          case 3:
+            ww = "星期三";
+            break;
+          case 4:
+            ww = "星期四";
+            break;
+          case 5:
+            ww = "星期五";
+            break;
+          case 6:
+            ww = "星期六";
+            break;
+          default:
+            ww = "星期日";
+        }
+        var yy = date.getFullYear() + "年";
+        var mm = addZero(date.getMonth() + 1) + "月";
+        var dd = addZero(date.getDate()) + "日";
+        var hh = addZero(date.getHours());
+        var mn = addZero(date.getMinutes());
+        var ss = addZero(date.getSeconds());
+        var currentTime =
+          yy + mm + dd + " " + ww + " " + hh + ":" + mn + ":" + ss;
+        clock.innerHTML = currentTime;
+      }
+
+      function addZero(temp) {
+        if (temp < 10) return "0" + temp;
+        else return temp;
+      }
+
+      setInterval("refreshClock()", 100);
+    </script>
+  </footer>
+</html>
